@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>文字轉有聲教材</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+
+:root {
+  --blue:      #4a90d9;
+  --blue-dk:   #2d6fa8;
+  --blue-lt:   #e8f4fd;
+  --blue-grad: linear-gradient(135deg,#4a90d9,#2d6fa8);
+  --green:     #52c97a;
+  --orange:    #ff8c42;
+  --yellow:    #ffd54f;
+  --bg:        #eef5fc;
+  --white:     #ffffff;
+  --text:      #1e2d3d;
+  --muted:     #7a99b5;
+  --border:    #d4e8f8;
+  --radius:    22px;
+  --shadow:    0 6px 28px rgba(44,100,160,.13);
+  --shadow-lg: 0 12px 48px rgba(44,100,160,.20);
+  --reading-bg:     #fff9e6;
+  --reading-border: #ffc107;
+  --line-even:      #f4f9ff;
+  --line-hover:     #dbeeff;
+  --title-color:    #2d6fa8;
+}
+body.dark {
+  --bg:        #12202e;
+  --white:     #1a2d3f;
+  --text:      #e8f2fc;
+  --muted:     #6a8faa;
+  --border:    #243a50;
+  --blue-lt:   #1a3050;
+  --reading-bg: #2a2318;
+  --reading-border: #ffc107;
+  --line-even: #162636;
+  --line-hover: #1e3448;
+  --title-color: #4a90d9;
+  --shadow:    0 6px 28px rgba(0,0,0,.3);
+  --shadow-lg: 0 12px 48px rgba(0,0,0,.4);
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Nunito','Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background .3s,color .3s}
+
+/* ─── UPLOAD ─── */
+#uploadScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:linear-gradient(160deg,#1a3a5c 0%,#2d6fa8 60%,#4a90d9 100%)}
+.upload-logo{text-align:center;margin-bottom:28px;color:#fff}
+.upload-logo-icon{font-size:3.2rem;display:block;margin-bottom:8px}
+.upload-logo-school{font-size:.85rem;letter-spacing:2px;opacity:.75;margin-bottom:4px}
+.upload-logo-title{font-size:1.6rem;font-weight:900}
+.upload-logo-title span{color:var(--yellow)}
+.upload-card{background:var(--white);border-radius:var(--radius);padding:28px 24px 24px;width:100%;max-width:400px;box-shadow:0 16px 48px rgba(0,0,0,.28)}
+.drop-zone{border:2.5px dashed var(--border);border-radius:16px;padding:28px 16px;cursor:pointer;text-align:center;background:var(--bg);transition:all .2s;margin-bottom:16px}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--blue);background:var(--blue-lt)}
+.drop-zone input[type="file"]{display:none}
+.drop-zone label{cursor:pointer;display:block}
+.drop-icon{font-size:2.6rem;display:block;margin-bottom:8px}
+.drop-text{font-size:.88rem;font-weight:700;color:var(--muted);line-height:1.6}
+.drop-text strong{color:var(--blue-dk)}
+.btn-start{width:100%;padding:14px;border:none;border-radius:14px;background:var(--blue-grad);color:#fff;font-size:1.05rem;font-weight:900;font-family:'Nunito',sans-serif;cursor:pointer;transition:all .15s;box-shadow:0 4px 14px rgba(45,111,168,.35)}
+.btn-start:active{transform:scale(.97)}
+.btn-start:disabled{background:#b0c8e8;cursor:not-allowed;box-shadow:none}
+
+/* ─── READER ─── */
+#readerScreen{display:none;min-height:100vh}
+.topbar{background:var(--white);padding:11px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 12px rgba(0,0,0,.07);position:sticky;top:0;z-index:50;gap:8px;flex-wrap:wrap}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.topbar-title{font-size:.95rem;font-weight:900;color:var(--blue-dk)}
+.btn-back{background:var(--blue-lt);border:none;border-radius:14px;padding:9px 18px;font-size:.92rem;font-weight:900;color:var(--blue-dk);cursor:pointer;transition:all .15s;font-family:'Nunito',sans-serif;box-shadow:0 2px 8px rgba(74,144,217,.18)}
+.btn-back:active{transform:scale(.95)}
+.controls-bar{background:var(--white);border-top:1px solid var(--border);padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:52px;z-index:40;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.ctrl-group{display:flex;align-items:center;gap:6px}
+.ctrl-label{font-size:.78rem;font-weight:800;color:var(--muted);white-space:nowrap}
+.ctrl-select{font-family:'Nunito','Noto Sans TC',sans-serif;font-size:.82rem;font-weight:700;background:var(--blue-lt);color:var(--blue-dk);border:2px solid var(--border);border-radius:10px;padding:5px 8px;max-width:150px;outline:none;cursor:pointer}
+.ctrl-range{width:80px;accent-color:var(--blue)}
+.ctrl-val{font-size:.78rem;font-weight:800;color:var(--blue-dk);min-width:24px;text-align:center}
+.spacer{flex:1}
+.btn-ctrl{padding:7px 14px;border:2px solid var(--border);border-radius:12px;background:var(--white);color:var(--text);font-family:'Nunito',sans-serif;font-size:.88rem;font-weight:800;cursor:pointer;transition:all .15s;white-space:nowrap;box-shadow:0 2px 6px rgba(44,100,160,.07)}
+.btn-ctrl:hover{background:var(--blue-lt);border-color:var(--blue);color:var(--blue-dk)}
+.btn-ctrl:active{transform:scale(.95)}
+.btn-ctrl:disabled{opacity:.4;cursor:not-allowed}
+.btn-ctrl.primary{background:var(--blue-grad);color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(45,111,168,.30)}
+.btn-ctrl.primary:hover{opacity:.88;background:var(--blue-grad)}
+.btn-ctrl.green{background:linear-gradient(135deg,#52c97a,#389959);color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(56,153,89,.25)}
+.btn-ctrl.green:hover{opacity:.88;background:linear-gradient(135deg,#52c97a,#389959)}
+.btn-ctrl.orange{background:linear-gradient(135deg,#ff8c42,#e06a1a);color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(224,106,26,.25)}
+.btn-ctrl.orange:hover{opacity:.88}
+
+.status-tip{padding:6px 18px 2px;font-size:.78rem;font-weight:700;color:var(--muted)}
+.doc-heading{padding:18px 18px 4px;font-size:1.15rem;font-weight:900;color:var(--blue-dk)}
+
+/* ─── EDIT/PREVIEW PANEL ─── */
+#editPanel{display:none;padding:14px 16px;border-bottom:2px solid var(--border);background:var(--white)}
+.edit-panel-title{font-size:.82rem;font-weight:900;color:var(--muted);margin-bottom:8px;letter-spacing:.5px}
+#editTextarea{
+  width:100%;min-height:200px;max-height:50vh;
+  border:2px solid var(--border);border-radius:14px;
+  padding:12px 14px;
+  font-family:'Noto Sans TC','Nunito',sans-serif;
+  font-size:15px;line-height:1.8;
+  color:var(--text);background:var(--bg);
+  resize:vertical;outline:none;
+  transition:border-color .2s;
+}
+#editTextarea:focus{border-color:var(--blue)}
+.edit-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+
+/* ─── CONTENT ─── */
+#content{padding:6px 14px 60px}
+.line{display:flex;gap:8px;align-items:flex-start;padding:9px 12px;border-radius:14px;margin:2px 0;cursor:pointer;transition:background .12s}
+.line:hover{background:var(--line-hover)}
+.line.even{background:var(--line-even)}
+.line.even:hover{background:var(--line-hover)}
+.line.reading{background:var(--reading-bg)!important;outline:2.5px solid var(--reading-border);border-radius:14px}
+.lineText{flex:1;line-height:1.85}
+.title-main{font-size:1.08rem;font-weight:900;color:var(--title-color);padding:10px 12px 6px;margin-top:10px;cursor:default;border-radius:0}
+.title-main:hover{background:transparent}
+.title-sub{font-size:.96rem;font-weight:800;color:var(--muted);cursor:default}
+.title-sub:hover{background:transparent}
+.gap{height:8px}
+
+/* ─── PROCESSING ─── */
+#processingOverlay{display:none;position:fixed;inset:0;background:rgba(26,58,92,.55);z-index:100;align-items:center;justify-content:center}
+#processingOverlay.show{display:flex}
+.processing-card{background:var(--white);border-radius:var(--radius);padding:32px 40px;text-align:center;box-shadow:var(--shadow-lg)}
+.spinner{width:42px;height:42px;border:3.5px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.processing-card p{font-size:.9rem;font-weight:700;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<!-- ─── Upload Screen ─── -->
+<div id="uploadScreen">
+  <div class="upload-logo">
+    <span class="upload-logo-icon">🎧</span>
+    <div class="upload-logo-school">太平國小</div>
+    <div class="upload-logo-title">文字轉<span>有聲教材</span></div>
+  </div>
+  <div class="upload-card">
+    <div class="drop-zone" id="dropZone">
+      <label for="fileInput">
+        <span class="drop-icon">📂</span>
+        <span class="drop-text"><strong>點此選擇 .docx 檔案</strong><br>或直接拖曳到這裡</span>
+      </label>
+      <input type="file" id="fileInput" accept=".docx,.doc" />
+    </div>
+    <button class="btn-start" id="convertBtn" disabled>請先選擇檔案</button>
+    <!-- 直接輸入文字按鈕 -->
+    <button class="btn-start" id="manualBtn" style="margin-top:10px;background:linear-gradient(135deg,#ff8c42,#e06a1a);box-shadow:0 4px 14px rgba(224,106,26,.35)">✏️ 直接輸入文字</button>
+  </div>
+</div>
+
+<!-- ─── Reader Screen ─── -->
+<div id="readerScreen">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="btn-back" id="backBtn">↩ 重新上傳</button>
+      <span class="topbar-title" id="docTopTitle">有聲教材</span>
+    </div>
+  </div>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">聲音</span>
+      <select id="voiceSelect" class="ctrl-select"></select>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">語速</span>
+      <input id="rateSlider" class="ctrl-range" type="range" min="0.3" max="1.5" step="0.05" value="0.9" />
+      <span class="ctrl-val" id="rateVal">0.9</span>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">字體</span>
+      <input id="fontSlider" class="ctrl-range" type="range" min="13" max="36" step="1" value="17" />
+      <span class="ctrl-val" id="fontVal">17</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn-ctrl orange" id="editToggleBtn">✏️ 編輯</button>
+    <button class="btn-ctrl green" id="saveBtn">💾 另存新檔</button>
+    <button class="btn-ctrl primary" id="playAllBtn">▶ 逐行連播</button>
+    <button class="btn-ctrl" id="pauseBtn">⏸</button>
+    <button class="btn-ctrl" id="resumeBtn">⏯</button>
+    <button class="btn-ctrl" id="stopBtn">⏹</button>
+    <button class="btn-ctrl" id="themeBtn">🌙</button>
+  </div>
+
+  <!-- 編輯面板 (預設隱藏) -->
+  <div id="editPanel">
+    <div class="edit-panel-title">✏️ 手動編輯內容 — 每行獨立朗讀，空行自動略過</div>
+    <textarea id="editTextarea" placeholder="在此輸入或貼上文字，每一行會成為一個朗讀單位。&#10;&#10;例如：&#10;一、選擇題&#10;下列哪一項是正確的？&#10;①答案甲　②答案乙　③答案丙"></textarea>
+    <div class="edit-actions">
+      <button class="btn-ctrl primary" id="applyEditBtn">✅ 套用預覽</button>
+      <button class="btn-ctrl" id="cancelEditBtn">✖ 取消</button>
+    </div>
+  </div>
+
+  <div class="status-tip" id="statusBar">💡 點擊任意行朗讀，或按「逐行連播」</div>
+  <div class="doc-heading" id="docTitle"></div>
+  <div id="content"></div>
+</div>
+
+<!-- Processing Overlay -->
+<div id="processingOverlay">
+  <div class="processing-card">
+    <div class="spinner"></div>
+    <p>正在解析 Word 檔案…</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  /* ── DOM ── */
+  const uploadScreen = document.getElementById('uploadScreen');
+  const readerScreen = document.getElementById('readerScreen');
+  const fileInput    = document.getElementById('fileInput');
+  const dropZone     = document.getElementById('dropZone');
+  const convertBtn   = document.getElementById('convertBtn');
+  const manualBtn    = document.getElementById('manualBtn');
+  const processingOverlay = document.getElementById('processingOverlay');
+  const content      = document.getElementById('content');
+  const docTitle     = document.getElementById('docTitle');
+  const docTopTitle  = document.getElementById('docTopTitle');
+  const statusBar    = document.getElementById('statusBar');
+  const voiceSelect  = document.getElementById('voiceSelect');
+  const rateSlider   = document.getElementById('rateSlider');
+  const rateVal      = document.getElementById('rateVal');
+  const fontSlider   = document.getElementById('fontSlider');
+  const fontVal      = document.getElementById('fontVal');
+  const editPanel    = document.getElementById('editPanel');
+  const editTextarea = document.getElementById('editTextarea');
+  const editToggleBtn= document.getElementById('editToggleBtn');
+  const applyEditBtn = document.getElementById('applyEditBtn');
+  const cancelEditBtn= document.getElementById('cancelEditBtn');
+  const saveBtn      = document.getElementById('saveBtn');
+
+  let selectedFile = null;
+  let voices = [];
+  let isPlayingAll = false;
+  let playAllIndex = 0;
+  let currentDocName = '有聲教材';
+  const synth = window.speechSynthesis;
+
+  /* ── 上傳 & 拖曳 ── */
+  fileInput.addEventListener('change', () => {
+    selectedFile = fileInput.files[0] || null;
+    if (selectedFile) {
+      convertBtn.textContent = `▶ 開始轉換「${selectedFile.name}」`;
+      convertBtn.disabled = false;
+    }
+  });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f && /\.(docx|doc)$/i.test(f.name)) {
+      selectedFile = f;
+      convertBtn.textContent = `▶ 開始轉換「${f.name}」`;
+      convertBtn.disabled = false;
+    } else { alert('請拖入 .docx 或 .doc 檔案'); }
+  });
+
+  /* ── 轉換 Word ── */
+  convertBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    processingOverlay.classList.add('show');
+    try { await convertDocx(selectedFile); }
+    catch (e) { alert('解析失敗：' + e.message); }
+    processingOverlay.classList.remove('show');
+  });
+
+  async function convertDocx(file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.convertToHtml({ arrayBuffer });
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(result.value, 'text/html');
+
+    currentDocName = file.name.replace(/\.(docx|doc)$/i, '');
+    docTitle.textContent = currentDocName;
+    docTopTitle.textContent = currentDocName;
+
+    // 把解析後的段落全部攤平成「行陣列」
+    const lines = [];
+    doc.body.querySelectorAll('*').forEach(el => {
+      const tag = el.tagName.toLowerCase();
+      // 只處理區塊層級元素，跳過巢狀
+      if (!['p','h1','h2','h3','h4','h5','h6','li'].includes(tag)) return;
+      if (el.closest('li') && tag !== 'li') return; // 避免重複
+
+      // 取得 innerHTML（保留 <br>）
+      const innerHTML = el.innerHTML;
+      // 先用 <br> 切割，再取 textContent
+      const parts = innerHTML.split(/<br\s*\/?>/gi);
+      parts.forEach(part => {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = part;
+        const text = tmp.textContent.trim();
+        if (!text) return;
+        if (tag === 'h1') lines.push({ text, type: 'h1' });
+        else if (['h2','h3'].includes(tag)) lines.push({ text, type: 'h2' });
+        else lines.push({ text, type: 'p' });
+      });
+    });
+
+    buildContent(lines);
+    showReader();
+  }
+
+  /* ── 直接輸入 ── */
+  manualBtn.addEventListener('click', () => {
+    currentDocName = '有聲教材';
+    docTitle.textContent = '';
+    docTopTitle.textContent = currentDocName;
+    content.innerHTML = '';
+    editTextarea.value = '';
+    showReader();
+    openEdit();
+  });
+
+  /* ── 建立內容行 ── */
+  function buildContent(lines) {
+    content.innerHTML = '';
+    let plainCount = 0;
+    lines.forEach(({ text, type }) => {
+      if (type === 'h1') { addLine(text, 'title-main'); }
+      else if (type === 'h2') { addLine(text, 'title-sub'); }
+      else {
+        addLine(text, plainCount % 2 === 1 ? 'plain even' : 'plain');
+        plainCount++;
+      }
+    });
+    content.style.fontSize = fontSlider.value + 'px';
+    // 更新 editTextarea 同步內容
+    syncTextareaFromContent();
+  }
+
+  function addLine(text, classes) {
+    const div = document.createElement('div');
+    div.className = 'line ' + classes;
+    const span = document.createElement('span');
+    span.className = 'lineText';
+    span.textContent = text;
+    div.appendChild(span);
+    content.appendChild(div);
+  }
+
+  /* ── 把目前 content 同步到 textarea ── */
+  function syncTextareaFromContent() {
+    const lines = Array.from(content.querySelectorAll('.line'));
+    editTextarea.value = lines.map(el => {
+      const t = el.querySelector('.lineText');
+      return t ? t.textContent : el.textContent;
+    }).join('\n');
+  }
+
+  /* ── 從 textarea 套用 ── */
+  applyEditBtn.addEventListener('click', () => {
+    const raw = editTextarea.value;
+    const lines = raw.split('\n').map(s => s.trim());
+    const parsed = lines.map(text => {
+      if (!text) return null;
+      // 簡單偵測標題：以數字+全形句號或「一二三四五六七八九十」開頭的短句視為大標題
+      if (/^[一二三四五六七八九十百]+[、．.。：:]/.test(text) && text.length < 30)
+        return { text, type: 'h1' };
+      return { text, type: 'p' };
+    }).filter(Boolean);
+
+    buildContent(parsed);
+    closeEdit();
+    statusBar.textContent = '✅ 已套用編輯內容';
+  });
+
+  cancelEditBtn.addEventListener('click', closeEdit);
+
+  /* ── 編輯面板開關 ── */
+  function openEdit() {
+    syncTextareaFromContent();
+    editPanel.style.display = 'block';
+    editToggleBtn.textContent = '✖ 關閉編輯';
+    editTextarea.focus();
+  }
+  function closeEdit() {
+    editPanel.style.display = 'none';
+    editToggleBtn.textContent = '✏️ 編輯';
+  }
+  editToggleBtn.addEventListener('click', () => {
+    editPanel.style.display === 'none' ? openEdit() : closeEdit();
+  });
+
+  /* ── 另存新檔 ── */
+  saveBtn.addEventListener('click', () => {
+    // 產生一份獨立的朗讀 HTML（不含編輯功能，純淨版）
+    const lines = Array.from(content.querySelectorAll('.line'));
+    const linesHtml = lines.map(el => {
+      const text = (el.querySelector('.lineText') || el).textContent;
+      const cls = el.className;
+      return `<div class="${cls}"><span class="lineText">${text.replace(/</g,'&lt;')}</span></div>`;
+    }).join('\n');
+
+    const html = `<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>${currentDocName}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+:root{--blue:#4a90d9;--blue-dk:#2d6fa8;--blue-lt:#e8f4fd;--blue-grad:linear-gradient(135deg,#4a90d9,#2d6fa8);--orange:#ff8c42;--yellow:#ffd54f;--bg:#eef5fc;--white:#ffffff;--text:#1e2d3d;--muted:#7a99b5;--border:#d4e8f8;--radius:22px;--shadow:0 6px 28px rgba(44,100,160,.13);--reading-bg:#fff9e6;--reading-border:#ffc107;--line-even:#f4f9ff;--line-hover:#dbeeff;--title-color:#2d6fa8}
+body.dark{--bg:#12202e;--white:#1a2d3f;--text:#e8f2fc;--muted:#6a8faa;--border:#243a50;--blue-lt:#1a3050;--reading-bg:#2a2318;--reading-border:#ffc107;--line-even:#162636;--line-hover:#1e3448;--title-color:#4a90d9;--shadow:0 6px 28px rgba(0,0,0,.3)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito','Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background .3s,color .3s}
+.topbar{background:var(--white);padding:11px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 12px rgba(0,0,0,.07);position:sticky;top:0;z-index:50;gap:8px;flex-wrap:wrap}
+.topbar-title{font-size:.95rem;font-weight:900;color:var(--blue-dk)}
+.controls-bar{background:var(--white);border-top:1px solid var(--border);padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:52px;z-index:40;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.ctrl-group{display:flex;align-items:center;gap:6px}
+.ctrl-label{font-size:.78rem;font-weight:800;color:var(--muted);white-space:nowrap}
+.ctrl-select{font-family:'Nunito','Noto Sans TC',sans-serif;font-size:.82rem;font-weight:700;background:var(--blue-lt);color:var(--blue-dk);border:2px solid var(--border);border-radius:10px;padding:5px 8px;max-width:150px;outline:none;cursor:pointer}
+.ctrl-range{width:80px;accent-color:var(--blue)}
+.ctrl-val{font-size:.78rem;font-weight:800;color:var(--blue-dk);min-width:24px;text-align:center}
+.spacer{flex:1}
+.btn-ctrl{padding:7px 14px;border:2px solid var(--border);border-radius:12px;background:var(--white);color:var(--text);font-family:'Nunito',sans-serif;font-size:.88rem;font-weight:800;cursor:pointer;transition:all .15s;white-space:nowrap;box-shadow:0 2px 6px rgba(44,100,160,.07)}
+.btn-ctrl:hover{background:var(--blue-lt);border-color:var(--blue);color:var(--blue-dk)}
+.btn-ctrl:active{transform:scale(.95)}
+.btn-ctrl.primary{background:var(--blue-grad);color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(45,111,168,.30)}
+.btn-ctrl.primary:hover{opacity:.88;background:var(--blue-grad)}
+.status-tip{padding:6px 18px 2px;font-size:.78rem;font-weight:700;color:var(--muted)}
+.doc-heading{padding:18px 18px 4px;font-size:1.15rem;font-weight:900;color:var(--blue-dk)}
+#content{padding:6px 14px 60px}
+.line{display:flex;gap:8px;align-items:flex-start;padding:9px 12px;border-radius:14px;margin:2px 0;cursor:pointer;transition:background .12s}
+.line:hover{background:var(--line-hover)}
+.line.even{background:var(--line-even)}
+.line.even:hover{background:var(--line-hover)}
+.line.reading{background:var(--reading-bg)!important;outline:2.5px solid var(--reading-border);border-radius:14px}
+.lineText{flex:1;line-height:1.85}
+.title-main{font-size:1.08rem;font-weight:900;color:var(--title-color);padding:10px 12px 6px;margin-top:10px;cursor:default;border-radius:0}
+.title-main:hover{background:transparent}
+.title-sub{font-size:.96rem;font-weight:800;color:var(--muted);cursor:default}
+.title-sub:hover{background:transparent}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-title">${currentDocName}</div>
+</div>
+<div class="controls-bar">
+  <div class="ctrl-group"><span class="ctrl-label">聲音</span><select id="voiceSelect" class="ctrl-select"></select></div>
+  <div class="ctrl-group"><span class="ctrl-label">語速</span><input id="rateSlider" class="ctrl-range" type="range" min="0.3" max="1.5" step="0.05" value="0.9"/><span class="ctrl-val" id="rateVal">0.9</span></div>
+  <div class="ctrl-group"><span class="ctrl-label">字體</span><input id="fontSlider" class="ctrl-range" type="range" min="13" max="36" step="1" value="17"/><span class="ctrl-val" id="fontVal">17</span></div>
+  <div class="spacer"></div>
+  <button class="btn-ctrl primary" id="playAllBtn">▶ 逐行連播</button>
+  <button class="btn-ctrl" id="pauseBtn">⏸</button>
+  <button class="btn-ctrl" id="resumeBtn">⏯</button>
+  <button class="btn-ctrl" id="stopBtn">⏹</button>
+  <button class="btn-ctrl" id="themeBtn">🌙</button>
+</div>
+<div class="status-tip" id="statusBar">💡 點擊任意行朗讀，或按「逐行連播」</div>
+<div class="doc-heading">${currentDocName}</div>
+<div id="content">
+${linesHtml}
+</div>
+<script>
+(function(){
+  var synth=window.speechSynthesis,voices=[],isPlayingAll=false,playAllIndex=0;
+  var voiceSelect=document.getElementById('voiceSelect');
+  var rateSlider=document.getElementById('rateSlider');
+  var rateVal=document.getElementById('rateVal');
+  var fontSlider=document.getElementById('fontSlider');
+  var fontVal=document.getElementById('fontVal');
+  var statusBar=document.getElementById('statusBar');
+  var content=document.getElementById('content');
+  function loadVoices(){voices=synth.getVoices();voiceSelect.innerHTML='';voices.forEach(function(v,i){var o=document.createElement('option');o.value=i;o.textContent=v.name+' ('+v.lang+')';voiceSelect.appendChild(o);});var zh=voices.findIndex(function(v){return /zh/i.test(v.lang);});if(zh>=0)voiceSelect.value=zh;}
+  loadVoices();if(speechSynthesis.onvoiceschanged!==undefined)speechSynthesis.onvoiceschanged=loadVoices;
+  function stopSpeak(){if(synth.speaking||synth.pending)synth.cancel();document.querySelectorAll('.line.reading').forEach(function(el){el.classList.remove('reading');});isPlayingAll=false;playAllIndex=0;statusBar.textContent='💡 點擊任意行朗讀，或按「逐行連播」';}
+  function speak(text,node,onend){if(synth.speaking||synth.pending)synth.cancel();document.querySelectorAll('.line.reading').forEach(function(el){el.classList.remove('reading');});if(!text)return;var u=new SpeechSynthesisUtterance(text);var idx=Number(voiceSelect.value);if(voices[idx])u.voice=voices[idx];u.rate=parseFloat(rateSlider.value)||0.9;u.onstart=function(){if(node){node.classList.add('reading');node.scrollIntoView({behavior:'smooth',block:'nearest'});}statusBar.textContent='🔊 '+text.slice(0,36)+(text.length>36?'…':'');};u.onend=function(){if(node)node.classList.remove('reading');if(onend)onend();};u.onerror=function(){if(node)node.classList.remove('reading');if(onend)onend();};synth.speak(u);}
+  content.addEventListener('click',function(e){var node=e.target.closest('.line');if(!node)return;if(node.classList.contains('title-main')||node.classList.contains('title-sub'))return;isPlayingAll=false;var t=node.querySelector('.lineText');speak((t?t.textContent:node.textContent).trim(),node);});
+  content.addEventListener('mouseup',function(){var sel=window.getSelection();var text=sel?sel.toString().trim():'';if(text)speak(text);});
+  function playAll(){var lines=Array.from(document.querySelectorAll('#content .line')).filter(function(el){return!el.classList.contains('title-main')&&!el.classList.contains('title-sub');});if(!lines.length)return;isPlayingAll=true;playAllIndex=0;function step(){if(!isPlayingAll||playAllIndex>=lines.length){isPlayingAll=false;statusBar.textContent='✅ 播放完畢';return;}var el=lines[playAllIndex++];var t=el.querySelector('.lineText');var text=(t?t.textContent:el.textContent).trim();if(!text){step();return;}speak(text,el,step);}step();}
+  document.getElementById('playAllBtn').addEventListener('click',function(){stopSpeak();setTimeout(playAll,100);});
+  document.getElementById('pauseBtn').addEventListener('click',function(){if(synth.speaking&&!synth.paused)synth.pause();});
+  document.getElementById('resumeBtn').addEventListener('click',function(){if(synth.paused)synth.resume();});
+  document.getElementById('stopBtn').addEventListener('click',stopSpeak);
+  document.getElementById('themeBtn').addEventListener('click',function(){document.body.classList.toggle('dark');document.getElementById('themeBtn').textContent=document.body.classList.contains('dark')?'☀️':'🌙';});
+  rateSlider.addEventListener('input',function(){rateVal.textContent=rateSlider.value;});
+  fontSlider.addEventListener('input',function(){fontVal.textContent=fontSlider.value;content.style.fontSize=fontSlider.value+'px';});
+})();
+<\/script>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = currentDocName + '.html';
+    a.click();
+    URL.revokeObjectURL(url);
+    statusBar.textContent = `💾 已下載「${currentDocName}.html」`;
+  });
+
+  /* ── 顯示 Reader ── */
+  function showReader() {
+    uploadScreen.style.display = 'none';
+    readerScreen.style.display = 'block';
+    content.style.fontSize = fontSlider.value + 'px';
+    loadVoices();
+  }
+
+  /* ── 返回上傳 ── */
+  document.getElementById('backBtn').addEventListener('click', () => {
+    stopSpeak();
+    closeEdit();
+    readerScreen.style.display = 'none';
+    uploadScreen.style.display = 'flex';
+    content.innerHTML = '';
+    selectedFile = null;
+    convertBtn.textContent = '請先選擇檔案';
+    convertBtn.disabled = true;
+    fileInput.value = '';
+  });
+
+  /* ── 語音 ── */
+  function loadVoices() {
+    voices = synth.getVoices();
+    voiceSelect.innerHTML = '';
+    voices.forEach((v, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `${v.name} (${v.lang})`;
+      voiceSelect.appendChild(opt);
+    });
+    const zhIdx = voices.findIndex(v => /zh/i.test(v.lang));
+    if (zhIdx >= 0) voiceSelect.value = zhIdx;
+  }
+  loadVoices();
+  if (speechSynthesis.onvoiceschanged !== undefined)
+    speechSynthesis.onvoiceschanged = loadVoices;
+
+  /* ── TTS ── */
+  function stopSpeak() {
+    if (synth.speaking || synth.pending) synth.cancel();
+    document.querySelectorAll('.line.reading').forEach(el => el.classList.remove('reading'));
+    isPlayingAll = false;
+    playAllIndex = 0;
+    statusBar.textContent = '💡 點擊任意行朗讀，或按「逐行連播」';
+  }
+
+  function speak(text, node = null, onend = null) {
+    if (synth.speaking || synth.pending) synth.cancel();
+    document.querySelectorAll('.line.reading').forEach(el => el.classList.remove('reading'));
+    if (!text) return;
+    const u = new SpeechSynthesisUtterance(text);
+    const idx = Number(voiceSelect.value);
+    if (voices[idx]) u.voice = voices[idx];
+    u.rate = parseFloat(rateSlider.value) || 0.9;
+    u.onstart = () => {
+      if (node) { node.classList.add('reading'); node.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+      statusBar.textContent = '🔊 ' + text.slice(0, 36) + (text.length > 36 ? '…' : '');
+    };
+    u.onend   = () => { if (node) node.classList.remove('reading'); if (onend) onend(); };
+    u.onerror = () => { if (node) node.classList.remove('reading'); if (onend) onend(); };
+    synth.speak(u);
+  }
+
+  content.addEventListener('click', e => {
+    const node = e.target.closest('.line');
+    if (!node) return;
+    if (node.classList.contains('title-main') || node.classList.contains('title-sub')) return;
+    isPlayingAll = false;
+    const t = node.querySelector('.lineText');
+    speak((t ? t.textContent : node.textContent).trim(), node);
+  });
+
+  content.addEventListener('mouseup', () => {
+    const sel  = window.getSelection();
+    const text = sel ? sel.toString().trim() : '';
+    if (text) speak(text);
+  });
+
+  function playAll() {
+    const lines = Array.from(document.querySelectorAll('#content .line')).filter(el =>
+      !el.classList.contains('title-main') && !el.classList.contains('title-sub')
+    );
+    if (!lines.length) return;
+    isPlayingAll = true;
+    playAllIndex = 0;
+    const step = () => {
+      if (!isPlayingAll || playAllIndex >= lines.length) { isPlayingAll = false; statusBar.textContent = '✅ 播放完畢'; return; }
+      const el   = lines[playAllIndex++];
+      const t    = el.querySelector('.lineText');
+      const text = (t ? t.textContent : el.textContent).trim();
+      if (!text) { step(); return; }
+      speak(text, el, step);
+    };
+    step();
+  }
+
+  document.getElementById('playAllBtn').addEventListener('click', () => { stopSpeak(); setTimeout(playAll, 100); });
+  document.getElementById('pauseBtn').addEventListener('click',  () => { if (synth.speaking && !synth.paused) synth.pause(); });
+  document.getElementById('resumeBtn').addEventListener('click', () => { if (synth.paused) synth.resume(); });
+  document.getElementById('stopBtn').addEventListener('click', stopSpeak);
+  document.getElementById('themeBtn').addEventListener('click', () => {
+    document.body.classList.toggle('dark');
+    document.getElementById('themeBtn').textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+  });
+
+  rateSlider.addEventListener('input', () => { rateVal.textContent = rateSlider.value; });
+  fontSlider.addEventListener('input', () => { fontVal.textContent = fontSlider.value; content.style.fontSize = fontSlider.value + 'px'; });
+})();
+</script>
+</body>
+</html>
