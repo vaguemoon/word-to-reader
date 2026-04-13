@@ -302,6 +302,12 @@ body {
 .btn-pick:hover {
   background: var(--blue); color: #fff; border-style: solid; border-color: transparent;
 }
+.btn-sync {
+  border-color: var(--green-dk); color: var(--green-dk);
+  background: #edfaf3;
+}
+body.dark .btn-sync { background: #132d1e; }
+.btn-sync:hover { background: var(--green); border-color: transparent; color: #fff; }
 
 .group-section { margin-bottom: 32px; }
 .group-label {
@@ -524,6 +530,7 @@ body {
   <div class="library-wrap">
     <div class="library-toprow">
       <div class="library-heading">📚 報讀庫</div>
+      <button class="btn-pick btn-sync" id="btn-sync-github">☁️ 從 GitHub 同步</button>
       <label class="btn-pick" for="import-files-input">📥 匯入 .html 檔</label>
       <input type="file" id="import-files-input" accept=".html,.htm" multiple style="display:none"/>
     </div>
@@ -616,6 +623,7 @@ var cancelEditBtn   = document.getElementById('cancel-edit-btn');
 var saveLibBtn      = document.getElementById('save-lib-btn');
 var libraryContent  = document.getElementById('library-content');
 var btnImportFiles  = document.getElementById('import-files-input');
+var btnSyncGitHub   = document.getElementById('btn-sync-github');
 var modalSave       = document.getElementById('modal-save');
 var saveFilename    = document.getElementById('save-filename');
 var saveGroup       = document.getElementById('save-group');
@@ -1096,6 +1104,63 @@ btnImportFiles.addEventListener('change', async function () {
   btnImportFiles.value = '';
   procOverlay.classList.remove('show');
   showToast('✅ 已匯入 ' + ok + ' 個' + (fail ? '，' + fail + ' 個失敗' : ''));
+  loadLibrary();
+});
+
+/* ══ GitHub 同步 ═════════════════════════════════════════════ */
+var GITHUB_API = 'https://api.github.com/repos/vaguemoon/word-to-reader/contents/%E5%A0%B1%E8%AE%80';
+
+btnSyncGitHub.addEventListener('click', async function () {
+  procMsg.textContent = '正在連線 GitHub…';
+  procOverlay.classList.add('show');
+
+  var items;
+  try {
+    var res = await fetch(GITHUB_API);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    items = await res.json();
+  } catch (e) {
+    procOverlay.classList.remove('show');
+    showToast('⚠️ 無法取得檔案清單：' + e.message);
+    return;
+  }
+
+  var htmlFiles = items.filter(function (item) {
+    return item.type === 'file' && /\.html?$/i.test(item.name) && item.name !== 'index.html';
+  });
+
+  if (htmlFiles.length === 0) {
+    procOverlay.classList.remove('show');
+    showToast('⚠️ 報讀/ 資料夾中沒有找到 .html 檔案');
+    return;
+  }
+
+  var ok = 0, fail = 0;
+  for (var i = 0; i < htmlFiles.length; i++) {
+    var item = htmlFiles[i];
+    procMsg.textContent = '同步中 (' + (i + 1) + ' / ' + htmlFiles.length + ')…';
+    try {
+      var htmlRes = await fetch(item.download_url);
+      if (!htmlRes.ok) throw new Error('HTTP ' + htmlRes.status);
+      var html = await htmlRes.text();
+
+      /* 從 HTML 的 <meta> / <title> 抽取 group / date / title */
+      var parser = new DOMParser();
+      var doc    = parser.parseFromString(html, 'text/html');
+      var titleEl = doc.querySelector('title');
+      var groupEl = doc.querySelector('meta[name="reader-group"]');
+      var dateEl  = doc.querySelector('meta[name="reader-date"]');
+      var title = (titleEl && titleEl.textContent.trim()) || item.name.replace(/\.html?$/i, '');
+      var group = (groupEl && groupEl.getAttribute('content')) || '未分類';
+      var date  = (dateEl  && dateEl.getAttribute('content'))  || new Date().toISOString().slice(0, 10);
+
+      await idbPut({ name: item.name, title: title, group: group, date: date, html: html });
+      ok++;
+    } catch (e) { fail++; }
+  }
+
+  procOverlay.classList.remove('show');
+  showToast('✅ 同步完成：' + ok + ' 個' + (fail ? '，' + fail + ' 個失敗' : ''));
   loadLibrary();
 });
 
