@@ -1179,9 +1179,7 @@ btnSaveGhToken.addEventListener('click', function () {
 });
 
 /* ══ GitHub 上傳 ═════════════════════════════════════════════ */
-/* ── 在此填入你的 GitHub Personal Access Token（repo > contents:write）── */
-var GITHUB_PAT = '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';
-/* ──────────────────────────────────────────────────────────── */
+var GITHUB_PAT = '';  /* 請勿在此填入 token，改用報讀庫右上角 ⚙️ 按鈕設定 */
 var GITHUB_CONTENTS = 'https://api.github.com/repos/vaguemoon/word-to-reader/contents/';
 
 async function uploadToGitHub(name, html) {
