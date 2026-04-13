@@ -308,6 +308,12 @@ body {
 }
 body.dark .btn-sync { background: #132d1e; }
 .btn-sync:hover { background: var(--green); border-color: transparent; color: #fff; }
+.btn-push {
+  border-color: #389959; color: #389959;
+  background: #edfaf3;
+}
+body.dark .btn-push { background: #132d1e; }
+.btn-push:hover { background: #389959; border-color: transparent; color: #fff; }
 .btn-gh-settings {
   width: 44px; height: 44px; flex-shrink: 0;
   border: 2px solid var(--border); border-radius: 14px;
@@ -340,7 +346,7 @@ body.dark .btn-modal-upload { background: #132d1e; }
 .lib-card {
   background: linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.01));
   border: 1px solid var(--border); border-radius: 16px;
-  padding: 16px 120px 16px 18px;
+  padding: 16px 158px 16px 18px;
   cursor: pointer; text-decoration: none; color: var(--text);
   display: block; position: relative;
   transition: all .15s;
@@ -354,7 +360,8 @@ body.dark .btn-modal-upload { background: #132d1e; }
 .lib-card-meta  { font-size: .76rem; color: var(--muted); }
 .lib-card-del,
 .lib-card-edit,
-.lib-card-dl {
+.lib-card-dl,
+.lib-card-ul {
   position: absolute; top: 50%;
   transform: translateY(-50%);
   width: 30px; height: 30px;
@@ -366,12 +373,15 @@ body.dark .btn-modal-upload { background: #132d1e; }
 .lib-card-del  { right: 12px; }
 .lib-card-edit { right: 48px; }
 .lib-card-dl   { right: 84px; }
+.lib-card-ul   { right: 120px; }
 .lib-card:hover .lib-card-del,
 .lib-card:hover .lib-card-edit,
-.lib-card:hover .lib-card-dl   { opacity: 1; }
+.lib-card:hover .lib-card-dl,
+.lib-card:hover .lib-card-ul   { opacity: 1; }
 .lib-card-del:hover  { background: var(--red);     color: #fff; }
 .lib-card-edit:hover { background: var(--blue-lt); color: var(--blue-dk); }
 .lib-card-dl:hover   { background: #e6f9ee;        color: #389959; }
+.lib-card-ul:hover   { background: #e6f9ee;        color: #389959; }
 
 .library-empty {
   text-align: center; padding: 56px 24px; color: var(--muted);
@@ -546,6 +556,7 @@ body.dark .btn-modal-upload { background: #132d1e; }
     <div class="library-toprow">
       <div class="library-heading">📚 報讀庫</div>
       <button class="btn-pick btn-sync" id="btn-sync-github">☁️ 從 GitHub 同步</button>
+      <button class="btn-pick btn-push" id="btn-push-github">⬆️ 全部上傳到 GitHub</button>
       <label class="btn-pick" for="import-files-input">📥 匯入 .html 檔</label>
       <button class="btn-gh-settings" id="btn-gh-settings" title="GitHub Token 設定">⚙️</button>
       <input type="file" id="import-files-input" accept=".html,.htm" multiple style="display:none"/>
@@ -598,7 +609,6 @@ body.dark .btn-modal-upload { background: #132d1e; }
       <button class="btn-modal-cancel" id="btn-cancel-edit-item">取消</button>
       <button class="btn-modal-ok"     id="btn-confirm-edit-item">✅ 儲存</button>
     </div>
-    <button class="btn-modal-upload" id="btn-upload-edit-item">⬆️ 儲存並上傳到 GitHub</button>
   </div>
 </div>
 
@@ -671,7 +681,7 @@ var editItemGroup   = document.getElementById('edit-item-group');
 var editItemGroups  = document.getElementById('edit-item-groups');
 var btnCancelEditItem  = document.getElementById('btn-cancel-edit-item');
 var btnConfirmEditItem = document.getElementById('btn-confirm-edit-item');
-var btnUploadEditItem  = document.getElementById('btn-upload-edit-item');
+var btnPushGitHub      = document.getElementById('btn-push-github');
 var btnGhSettings      = document.getElementById('btn-gh-settings');
 var modalGhToken       = document.getElementById('modal-gh-token');
 var ghTokenInput       = document.getElementById('gh-token-input');
@@ -1169,10 +1179,13 @@ btnSaveGhToken.addEventListener('click', function () {
 });
 
 /* ══ GitHub 上傳 ═════════════════════════════════════════════ */
+/* ── 在此填入你的 GitHub Personal Access Token（repo > contents:write）── */
+var GITHUB_PAT = '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';
+/* ──────────────────────────────────────────────────────────── */
 var GITHUB_CONTENTS = 'https://api.github.com/repos/vaguemoon/word-to-reader/contents/';
 
 async function uploadToGitHub(name, html) {
-  var token = localStorage.getItem('gh-pat');
+  var token = GITHUB_PAT || localStorage.getItem('gh-pat');
   if (!token) {
     ghTokenInput.value = '';
     modalGhToken.classList.add('show');
@@ -1310,30 +1323,25 @@ btnConfirmEditItem.addEventListener('click', async function () {
   loadLibrary();
 });
 
-btnUploadEditItem.addEventListener('click', async function () {
-  if (!_editingFile) return;
-  var newTitle = editItemTitle.value.trim();
-  var newGroup = editItemGroup.value.trim() || '未分類';
-  if (!newTitle) { editItemTitle.focus(); return; }
-  try {
-    var entry = await idbGet(_editingFile.name);
-    if (!entry) { showToast('⚠️ 找不到此項目'); return; }
-    entry.title = newTitle;
-    entry.group = newGroup;
-    await idbPut(entry);
-    modalEditItem.classList.remove('show');
-    var name = _editingFile.name;
-    _editingFile = null;
-    procMsg.textContent = '正在上傳到 GitHub…';
-    procOverlay.classList.add('show');
-    var ok = await uploadToGitHub(entry.name, entry.html);
-    procOverlay.classList.remove('show');
-    if (ok) showToast('✅ 已上傳「' + entry.title + '」到 GitHub');
-    loadLibrary();
-  } catch (e) {
-    procOverlay.classList.remove('show');
-    showToast('⚠️ 上傳失敗：' + e.message);
+/* 全部上傳到 GitHub */
+btnPushGitHub.addEventListener('click', async function () {
+  var entries;
+  try { entries = await idbGetAll(); } catch (e) { showToast('⚠️ 無法讀取報讀庫'); return; }
+  if (!entries.length) { showToast('⚠️ 報讀庫是空的'); return; }
+  procMsg.textContent = '正在上傳到 GitHub (0/' + entries.length + ')…';
+  procOverlay.classList.add('show');
+  var ok = 0, fail = 0;
+  for (var i = 0; i < entries.length; i++) {
+    var e = entries[i];
+    procMsg.textContent = '上傳到 GitHub (' + (i + 1) + '/' + entries.length + ')…';
+    try {
+      var result = await uploadToGitHub(e.name, e.html);
+      if (result) ok++; else { fail = entries.length - i; break; }
+    } catch (err) { fail++; }
   }
+  procOverlay.classList.remove('show');
+  if (ok + fail === entries.length || ok > 0)
+    showToast('✅ 已上傳 ' + ok + ' 個' + (fail ? '，' + fail + ' 個失敗' : ''));
 });
 
 async function loadLibrary() {
@@ -1397,6 +1405,12 @@ async function loadLibrary() {
         card.appendChild(dateMeta);
       }
 
+      var ulBtn = document.createElement('button');
+      ulBtn.className   = 'lib-card-ul';
+      ulBtn.title       = '上傳到 GitHub';
+      ulBtn.textContent = '⬆️';
+      card.appendChild(ulBtn);
+
       var dlBtn = document.createElement('button');
       dlBtn.className   = 'lib-card-dl';
       dlBtn.title       = '下載 .html 檔案';
@@ -1416,8 +1430,22 @@ async function loadLibrary() {
       card.appendChild(delBtn);
 
       card.addEventListener('click', function (e) {
-        if (e.target === delBtn || e.target === editBtn || e.target === dlBtn) return;
+        if (e.target === delBtn || e.target === editBtn || e.target === dlBtn || e.target === ulBtn) return;
         openLibraryItem(entry.html, entry.title);
+      });
+      ulBtn.addEventListener('click', async function (e) {
+        e.stopPropagation();
+        ulBtn.disabled = true;
+        procMsg.textContent = '正在上傳「' + entry.title + '」…';
+        procOverlay.classList.add('show');
+        try {
+          var ok = await uploadToGitHub(entry.name, entry.html);
+          if (ok) showToast('✅ 已上傳「' + entry.title + '」到 GitHub');
+        } catch (err) {
+          showToast('⚠️ 上傳失敗：' + err.message);
+        }
+        procOverlay.classList.remove('show');
+        ulBtn.disabled = false;
       });
       dlBtn.addEventListener('click', function (e) {
         e.stopPropagation();
