@@ -691,6 +691,15 @@ var topbarBack      = document.getElementById('topbar-back');
 var themeBtn        = document.getElementById('topbar-theme');
 var toast           = document.getElementById('toast');
 
+/* ══ Utils ══════════════════════════════════════════════════ */
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 /* ══ State ══════════════════════════════════════════════════ */
 var selectedFile    = null;
 var voices          = [];
@@ -892,6 +901,8 @@ function playAll() {
 }
 
 readerContent.addEventListener('click', function (e) {
+  var sel = window.getSelection();
+  if (sel && sel.toString().trim()) return; // 有選取文字時交給 mouseup 處理
   var node = e.target.closest('.line');
   if (!node) return;
   if (node.classList.contains('title-main') || node.classList.contains('title-sub')) return;
@@ -1005,9 +1016,9 @@ function buildOutputHtml(docName, group) {
   return '<!DOCTYPE html>\n<html lang="zh-Hant">\n<head>\n'
     + '<meta charset="utf-8"/>\n'
     + '<meta name="viewport" content="width=device-width,initial-scale=1"/>\n'
-    + '<meta name="reader-group" content="' + group + '"/>\n'
+    + '<meta name="reader-group" content="' + escapeHtml(group) + '"/>\n'
     + '<meta name="reader-date"  content="' + new Date().toISOString().slice(0,10) + '"/>\n'
-    + '<title>' + docName + '</title>\n'
+    + '<title>' + escapeHtml(docName) + '</title>\n'
     + '<style>\n'
     + ':root{--blue:#4a90d9;--blue-dk:#2d6fa8;--blue-lt:#e8f4fd;--blue-grad:linear-gradient(135deg,#4a90d9,#2d6fa8);--yellow:#ffd54f;--bg:#eef5fc;--white:#ffffff;--text:#1e2d3d;--muted:#7a99b5;--border:#d4e8f8;--reading-bg:#fff9e6;--reading-border:#ffc107;--line-even:#f4f9ff;--line-hover:#dbeeff}\n'
     + 'body.dark{--bg:#12202e;--white:#1a2d3f;--text:#e8f2fc;--muted:#6a8faa;--border:#243a50;--blue-lt:#1a3050;--reading-bg:#2a2318;--line-even:#162636;--line-hover:#1e3448}\n'
@@ -1044,7 +1055,7 @@ function buildOutputHtml(docName, group) {
     + '.title-sub:hover{background:transparent}\n'
     + '</style>\n</head>\n<body>\n'
     + '<div class="topbar">\n'
-    + '  <span class="topbar-title">🎧 ' + docName + '</span>\n'
+    + '  <span class="topbar-title">🎧 ' + escapeHtml(docName) + '</span>\n'
     + '  <button class="btn-theme" id="theme-btn">🌙</button>\n'
     + '</div>\n'
     + '<div class="controls-bar">\n'
@@ -1058,7 +1069,7 @@ function buildOutputHtml(docName, group) {
     + '  <button class="btn-ctrl" id="st">⏹</button>\n'
     + '</div>\n'
     + '<div class="status-tip" id="sb">💡 點擊任意行朗讀，或按「連播」</div>\n'
-    + '<div class="doc-heading">' + docName + '</div>\n'
+    + '<div class="doc-heading">' + escapeHtml(docName) + '</div>\n'
     + '<div id="content">\n' + linesHtml + '\n</div>\n'
     + '<script>\n(function(){\n'
     + 'var sy=window.speechSynthesis,vc=[],ipa=false,pai=0;\n'
@@ -1180,7 +1191,8 @@ btnSaveGhToken.addEventListener('click', function () {
 
 /* ══ GitHub 上傳 ═════════════════════════════════════════════ */
 var GITHUB_PAT = '';  /* 請勿在此填入 token，改用報讀庫右上角 ⚙️ 按鈕設定 */
-var GITHUB_CONTENTS = 'https://api.github.com/repos/vaguemoon/word-to-reader/contents/';
+var GITHUB_REPO     = 'https://api.github.com/repos/vaguemoon/word-to-reader/contents/';
+var GITHUB_CONTENTS = GITHUB_REPO; /* 向後相容 alias */
 
 async function uploadToGitHub(name, html) {
   var token = GITHUB_PAT || localStorage.getItem('gh-pat');
@@ -1218,15 +1230,13 @@ async function uploadToGitHub(name, html) {
 }
 
 /* ══ GitHub 同步 ═════════════════════════════════════════════ */
-var GITHUB_API = 'https://api.github.com/repos/vaguemoon/word-to-reader/contents/%E5%A0%B1%E8%AE%80';
-
 btnSyncGitHub.addEventListener('click', async function () {
   procMsg.textContent = '正在連線 GitHub…';
   procOverlay.classList.add('show');
 
   var items;
   try {
-    var res = await fetch(GITHUB_API);
+    var res = await fetch(GITHUB_REPO + encodeURIComponent('報讀'));
     if (!res.ok) throw new Error('HTTP ' + res.status);
     items = await res.json();
   } catch (e) {
@@ -1323,6 +1333,13 @@ btnConfirmEditItem.addEventListener('click', async function () {
 
 /* 全部上傳到 GitHub */
 btnPushGitHub.addEventListener('click', async function () {
+  var token = GITHUB_PAT || localStorage.getItem('gh-pat');
+  if (!token) {
+    ghTokenInput.value = '';
+    modalGhToken.classList.add('show');
+    showToast('⚠️ 請先設定 GitHub Token');
+    return;
+  }
   var entries;
   try { entries = await idbGetAll(); } catch (e) { showToast('⚠️ 無法讀取報讀庫'); return; }
   if (!entries.length) { showToast('⚠️ 報讀庫是空的'); return; }
@@ -1333,13 +1350,12 @@ btnPushGitHub.addEventListener('click', async function () {
     var e = entries[i];
     procMsg.textContent = '上傳到 GitHub (' + (i + 1) + '/' + entries.length + ')…';
     try {
-      var result = await uploadToGitHub(e.name, e.html);
-      if (result) ok++; else { fail = entries.length - i; break; }
+      await uploadToGitHub(e.name, e.html);
+      ok++;
     } catch (err) { fail++; }
   }
   procOverlay.classList.remove('show');
-  if (ok + fail === entries.length || ok > 0)
-    showToast('✅ 已上傳 ' + ok + ' 個' + (fail ? '，' + fail + ' 個失敗' : ''));
+  showToast('✅ 已上傳 ' + ok + ' 個' + (fail ? '，' + fail + ' 個失敗' : ''));
 });
 
 async function loadLibrary() {
@@ -1348,7 +1364,7 @@ async function loadLibrary() {
     entries = await idbGetAll();
   } catch (e) {
     libraryContent.innerHTML =
-      '<div class="library-empty"><p>⚠️ 無法讀取報讀庫</p><small>' + e.message + '</small></div>';
+      '<div class="library-empty"><p>⚠️ 無法讀取報讀庫</p><small>' + escapeHtml(e.message) + '</small></div>';
     return;
   }
 
