@@ -243,6 +243,72 @@ body {
 #edit-textarea:focus { border-color: var(--blue); }
 .edit-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 
+/* ══ Controls +/- buttons ════════════════════════════════════ */
+.ctrl-pm { display: flex; align-items: center; gap: 4px; }
+.btn-pm {
+  width: 28px; height: 28px;
+  border: 2px solid var(--border); border-radius: 8px;
+  background: var(--white); color: var(--blue-dk);
+  font-size: 1rem; font-weight: 900; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .12s; line-height: 1; user-select: none;
+}
+.btn-pm:hover  { background: var(--blue-lt); border-color: var(--blue); }
+.btn-pm:active { transform: scale(.88); }
+
+/* ══ Edit Panel — Float / Format / Search ════════════════════ */
+.edit-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+#edit-panel.floating {
+  position: fixed; z-index: 150;
+  width: min(560px, 94vw);
+  border-radius: var(--radius);
+  border: 2px solid var(--border);
+  box-shadow: var(--shadow-lg);
+}
+.edit-drag-handle {
+  display: none; align-items: center; justify-content: space-between;
+  padding: 8px 14px; margin: -12px -16px 12px;
+  background: var(--blue-lt);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  cursor: grab; user-select: none;
+}
+.edit-drag-handle:active { cursor: grabbing; }
+#edit-panel.floating .edit-drag-handle { display: flex; }
+#edit-panel.floating .edit-panel-header { display: none; }
+.edit-drag-dots { font-size: .8rem; font-weight: 700; color: var(--muted); }
+.edit-format-bar {
+  display: flex; gap: 5px; align-items: center;
+  margin-bottom: 8px; flex-wrap: wrap;
+}
+.btn-fmt {
+  height: 28px; padding: 0 9px;
+  border: 1.5px solid var(--border); border-radius: 7px;
+  background: var(--white); color: var(--text);
+  font-size: .75rem; font-weight: 800; cursor: pointer;
+  transition: all .12s; white-space: nowrap;
+}
+.btn-fmt:hover  { background: var(--blue-lt); border-color: var(--blue); color: var(--blue-dk); }
+.btn-fmt:active { transform: scale(.93); }
+.btn-fmt.active { background: var(--blue-lt); border-color: var(--blue); color: var(--blue-dk); }
+.fmt-divider { width: 1px; height: 18px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
+.edit-search-bar {
+  display: none; gap: 6px; align-items: center;
+  margin-bottom: 8px; flex-wrap: wrap;
+}
+.edit-search-bar.show { display: flex; }
+.edit-search-input {
+  height: 30px; padding: 0 9px; flex: 1; min-width: 80px;
+  border: 2px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text);
+  font-size: .82rem; outline: none; transition: border-color .2s;
+}
+.edit-search-input:focus { border-color: var(--blue); }
+#replace-input { flex: 0 0 110px; }
+
 .status-tip {
   padding: 8px 18px 4px;
   font-size: .76rem; font-weight: 700; color: var(--muted);
@@ -518,13 +584,19 @@ body.dark .btn-modal-upload { background: #132d1e; }
     </div>
     <div class="ctrl-group">
       <span class="ctrl-label">語速</span>
-      <input id="rate-slider" class="ctrl-range" type="range" min="0.3" max="1.5" step="0.05" value="0.9"/>
-      <span class="ctrl-val" id="rate-val">0.9</span>
+      <div class="ctrl-pm">
+        <button class="btn-pm" id="rate-minus">−</button>
+        <span class="ctrl-val" id="rate-val">0.9</span>
+        <button class="btn-pm" id="rate-plus">+</button>
+      </div>
     </div>
     <div class="ctrl-group">
       <span class="ctrl-label">字體</span>
-      <input id="font-slider" class="ctrl-range" type="range" min="13" max="36" step="1" value="17"/>
-      <span class="ctrl-val" id="font-val">17</span>
+      <div class="ctrl-pm">
+        <button class="btn-pm" id="font-minus">−</button>
+        <span class="ctrl-val" id="font-val">17px</span>
+        <button class="btn-pm" id="font-plus">+</button>
+      </div>
     </div>
     <div class="spacer"></div>
     <button class="btn-ctrl orange" id="edit-toggle-btn">✏️ 編輯</button>
@@ -536,9 +608,35 @@ body.dark .btn-modal-upload { background: #132d1e; }
   </div>
 
   <div id="edit-panel">
-    <div class="edit-panel-label">✏️ 手動編輯 — 每行獨立朗讀，空行自動略過</div>
+    <!-- 拖曳把手（浮動模式才顯示） -->
+    <div class="edit-drag-handle" id="edit-drag-handle">
+      <span class="edit-drag-dots">⠿ 拖曳移動</span>
+      <button class="btn-fmt" id="edit-pin-btn" title="釘回頂部">📌 釘回頂部</button>
+    </div>
+    <!-- 一般模式標題列 -->
+    <div class="edit-panel-header">
+      <div class="edit-panel-label">✏️ 手動編輯 — 每行獨立朗讀，空行自動略過</div>
+      <button class="btn-fmt" id="edit-float-btn" title="切換浮動視窗">⛶ 浮動</button>
+    </div>
+    <!-- 格式工具列 -->
+    <div class="edit-format-bar">
+      <button class="btn-fmt" id="fmt-t1">T1 大標</button>
+      <button class="btn-fmt" id="fmt-t2">T2 小標</button>
+      <button class="btn-fmt" id="fmt-clear">— 一般</button>
+      <div class="fmt-divider"></div>
+      <button class="btn-fmt" id="fmt-merge">⊕ 合併短行</button>
+      <div class="fmt-divider"></div>
+      <button class="btn-fmt" id="fmt-search-toggle">🔍 搜尋取代</button>
+    </div>
+    <!-- 搜尋取代列 -->
+    <div class="edit-search-bar" id="edit-search-bar">
+      <input class="edit-search-input" id="search-input" placeholder="搜尋…"/>
+      <input class="edit-search-input" id="replace-input" placeholder="取代為…"/>
+      <button class="btn-fmt" id="btn-replace">取代</button>
+      <button class="btn-fmt" id="btn-replace-all">全部</button>
+    </div>
     <textarea id="edit-textarea"
-      placeholder="在此輸入或貼上文字，每一行會成為一個朗讀單位。&#10;&#10;例如：&#10;一、選擇題&#10;下列哪一項是正確的？&#10;①答案甲　②答案乙　③答案丙"></textarea>
+      placeholder="在此輸入或貼上文字，每一行會成為一個朗讀單位。&#10;&#10;例如：&#10;一、選擇題&#10;下列哪一項是正確的？&#10;①答案甲　②答案乙　③答案丙&#10;&#10;用工具列的 T1/T2 可手動設定標題格式"></textarea>
     <div class="edit-actions">
       <button class="btn-ctrl primary" id="apply-edit-btn">✅ 套用預覽</button>
       <button class="btn-ctrl"         id="cancel-edit-btn">✖ 取消</button>
@@ -656,10 +754,9 @@ var readerContent   = document.getElementById('reader-content');
 var docTitle        = document.getElementById('doc-title');
 var statusBar       = document.getElementById('status-bar');
 var voiceSelect     = document.getElementById('voice-select');
-var rateSlider      = document.getElementById('rate-slider');
 var rateVal         = document.getElementById('rate-val');
-var fontSlider      = document.getElementById('font-slider');
 var fontVal         = document.getElementById('font-val');
+var editDragHandle  = document.getElementById('edit-drag-handle');
 var editPanel       = document.getElementById('edit-panel');
 var editTextarea    = document.getElementById('edit-textarea');
 var editToggleBtn   = document.getElementById('edit-toggle-btn');
@@ -709,6 +806,10 @@ var currentDocName  = '有聲教材';
 var currentPage     = 'upload';
 var synth           = window.speechSynthesis;
 var _editingFile    = null;  /* { name, title, group } */
+var rateValue       = 0.9;   /* 語速 */
+var fontValue       = 17;    /* 字體 px */
+var editIsFloat     = false; /* 編輯面板是否浮動 */
+var _dragState      = null;  /* 浮動面板拖曳狀態 */
 
 /* ══ Navigation ═════════════════════════════════════════════ */
 function showPage(name) {
@@ -816,7 +917,7 @@ function buildReader(rawText, name) {
     .map(function (l) { return l.trim(); })
     .filter(function (l) { return l.length > 0; });
   renderLines(lines);
-  readerContent.style.fontSize = fontSlider.value + 'px';
+  readerContent.style.fontSize = fontValue + 'px';
   statusBar.textContent = '💡 點擊任意行朗讀，或按「連播」';
 }
 
@@ -824,15 +925,27 @@ function renderLines(lines) {
   readerContent.innerHTML = '';
   var even = 0;
   lines.forEach(function (line) {
-    var div = document.createElement('div');
+    var div  = document.createElement('div');
     var span = document.createElement('span');
     span.className = 'lineText';
-    span.textContent = line;
-    if (/^[一二三四五六七八九十百千]+[、.．：:]/.test(line)) {
+    div.dataset.raw = line; /* 保留原始行（含前綴），供 openEdit 還原 */
+
+    /* 手動前綴優先判斷 */
+    if (/^## /.test(line)) {
+      span.textContent = line.slice(3);
+      div.className = 'line title-main';
+    } else if (/^# /.test(line)) {
+      span.textContent = line.slice(2);
+      div.className = 'line title-sub';
+    /* 自動偵測 */
+    } else if (/^[一二三四五六七八九十百千]+[、.．：:]/.test(line)) {
+      span.textContent = line;
       div.className = 'line title-main';
     } else if (/^[（(]?[\d]+[）)、.．]\s/.test(line) && line.length < 60) {
+      span.textContent = line;
       div.className = 'line title-sub';
     } else {
+      span.textContent = line;
       div.className = 'line' + (even % 2 === 1 ? ' even' : '');
       even++;
     }
@@ -871,7 +984,7 @@ function speak(text, node, onend) {
   var u = new SpeechSynthesisUtterance(text);
   var idx = Number(voiceSelect.value);
   if (voices[idx]) u.voice = voices[idx];
-  u.rate = parseFloat(rateSlider.value) || 0.9;
+  u.rate = rateValue;
   u.onstart = function () {
     if (node) { node.classList.add('reading'); node.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
     statusBar.textContent = '🔊 ' + text.slice(0, 36) + (text.length > 36 ? '…' : '');
@@ -920,16 +1033,36 @@ document.getElementById('play-all-btn').addEventListener('click', function () { 
 document.getElementById('pause-btn').addEventListener('click',  function () { if (synth.speaking && !synth.paused) synth.pause(); });
 document.getElementById('resume-btn').addEventListener('click', function () { if (synth.paused) synth.resume(); });
 document.getElementById('stop-btn').addEventListener('click',   stopSpeak);
-rateSlider.addEventListener('input', function () { rateVal.textContent = rateSlider.value; });
-fontSlider.addEventListener('input', function () {
-  fontVal.textContent = fontSlider.value;
-  readerContent.style.fontSize = fontSlider.value + 'px';
+
+/* ══ Rate / Font +/- ════════════════════════════════════════ */
+document.getElementById('rate-minus').addEventListener('click', function () {
+  rateValue = Math.max(0.3, Math.round((rateValue - 0.1) * 10) / 10);
+  rateVal.textContent = rateValue;
+});
+document.getElementById('rate-plus').addEventListener('click', function () {
+  rateValue = Math.min(1.5, Math.round((rateValue + 0.1) * 10) / 10);
+  rateVal.textContent = rateValue;
+});
+document.getElementById('font-minus').addEventListener('click', function () {
+  fontValue = Math.max(13, fontValue - 1);
+  fontVal.textContent = fontValue + 'px';
+  readerContent.style.fontSize = fontValue + 'px';
+});
+document.getElementById('font-plus').addEventListener('click', function () {
+  fontValue = Math.min(36, fontValue + 1);
+  fontVal.textContent = fontValue + 'px';
+  readerContent.style.fontSize = fontValue + 'px';
 });
 
 /* ══ Edit Panel ═════════════════════════════════════════════ */
 function openEdit() {
-  editTextarea.value = Array.from(readerContent.querySelectorAll('.lineText'))
-    .map(function (el) { return el.textContent; }).join('\n');
+  /* 優先讀 data-raw（保留 ## / # 前綴），fallback 讀顯示文字 */
+  editTextarea.value = Array.from(readerContent.querySelectorAll('.line'))
+    .map(function (el) {
+      return el.dataset.raw !== undefined
+        ? el.dataset.raw
+        : (el.querySelector('.lineText') || el).textContent;
+    }).join('\n');
   editPanel.style.display = 'block';
   editToggleBtn.textContent = '✖ 關閉編輯';
 }
@@ -945,11 +1078,140 @@ applyEditBtn.addEventListener('click', function () {
     .map(function (l) { return l.trim(); })
     .filter(function (l) { return l.length > 0; });
   renderLines(lines);
-  readerContent.style.fontSize = fontSlider.value + 'px';
+  readerContent.style.fontSize = fontValue + 'px';
   closeEdit();
   showToast('✅ 已套用編輯內容');
 });
 cancelEditBtn.addEventListener('click', closeEdit);
+
+/* ══ Edit Panel — Float / Drag ══════════════════════════════ */
+function setEditFloat(isFloat) {
+  editIsFloat = isFloat;
+  var panel = editPanel;
+  if (isFloat) {
+    panel.classList.add('floating');
+    /* 初始位置：畫面中央偏上 */
+    if (!panel.style.left) {
+      panel.style.left = Math.max(0, (window.innerWidth  - panel.offsetWidth)  / 2) + 'px';
+      panel.style.top  = Math.max(52, (window.innerHeight - panel.offsetHeight) / 3) + 'px';
+    }
+  } else {
+    panel.classList.remove('floating');
+    panel.style.left = '';
+    panel.style.top  = '';
+  }
+}
+document.getElementById('edit-float-btn').addEventListener('click', function () { setEditFloat(true);  });
+document.getElementById('edit-pin-btn').addEventListener('click',   function () { setEditFloat(false); });
+
+/* 拖曳 — mouse */
+editDragHandle.addEventListener('mousedown', function (e) {
+  if (!editIsFloat) return;
+  var r = editPanel.getBoundingClientRect();
+  _dragState = { ox: e.clientX - r.left, oy: e.clientY - r.top };
+  e.preventDefault();
+});
+document.addEventListener('mousemove', function (e) {
+  if (!_dragState) return;
+  var x = Math.max(0, Math.min(window.innerWidth  - editPanel.offsetWidth,  e.clientX - _dragState.ox));
+  var y = Math.max(0, Math.min(window.innerHeight - editPanel.offsetHeight, e.clientY - _dragState.oy));
+  editPanel.style.left = x + 'px';
+  editPanel.style.top  = y + 'px';
+});
+document.addEventListener('mouseup', function () { _dragState = null; });
+
+/* 拖曳 — touch */
+editDragHandle.addEventListener('touchstart', function (e) {
+  if (!editIsFloat) return;
+  var r = editPanel.getBoundingClientRect();
+  var t = e.touches[0];
+  _dragState = { ox: t.clientX - r.left, oy: t.clientY - r.top };
+  e.preventDefault();
+}, { passive: false });
+editDragHandle.addEventListener('touchmove', function (e) {
+  if (!_dragState) return;
+  var t = e.touches[0];
+  var x = Math.max(0, Math.min(window.innerWidth  - editPanel.offsetWidth,  t.clientX - _dragState.ox));
+  var y = Math.max(0, Math.min(window.innerHeight - editPanel.offsetHeight, t.clientY - _dragState.oy));
+  editPanel.style.left = x + 'px';
+  editPanel.style.top  = y + 'px';
+  e.preventDefault();
+}, { passive: false });
+editDragHandle.addEventListener('touchend', function () { _dragState = null; });
+
+/* ══ Edit Panel — Format Toolbar ════════════════════════════ */
+function getEditCursorLine() {
+  var ta    = editTextarea;
+  var start = ta.selectionStart;
+  var text  = ta.value;
+  var ls    = text.lastIndexOf('\n', start - 1) + 1;
+  var le    = text.indexOf('\n', start);
+  if (le === -1) le = text.length;
+  return { ls: ls, le: le, line: text.slice(ls, le) };
+}
+function applyLinePrefix(prefix) {
+  var ta   = editTextarea;
+  var info = getEditCursorLine();
+  /* 移除已有前綴 */
+  var bare = info.line.replace(/^(## |# )/, '');
+  var newLine = prefix + bare;
+  var before  = ta.value.slice(0, info.ls);
+  var after   = ta.value.slice(info.le);
+  var cur     = info.ls + newLine.length;
+  ta.value    = before + newLine + after;
+  ta.setSelectionRange(cur, cur);
+  ta.focus();
+}
+document.getElementById('fmt-t1').addEventListener('click',    function () { applyLinePrefix('## '); });
+document.getElementById('fmt-t2').addEventListener('click',    function () { applyLinePrefix('# '); });
+document.getElementById('fmt-clear').addEventListener('click', function () { applyLinePrefix(''); });
+
+/* ══ Edit Panel — Merge Short Lines ════════════════════════ */
+document.getElementById('fmt-merge').addEventListener('click', function () {
+  var lines  = editTextarea.value.split('\n');
+  var merged = [];
+  lines.forEach(function (line) {
+    var trimmed = line.trim();
+    /* 短行（< 5 字且非空行）附加到上一行 */
+    if (trimmed.length > 0 && trimmed.length < 5 && merged.length > 0 && merged[merged.length - 1].trim().length > 0) {
+      merged[merged.length - 1] += trimmed;
+    } else {
+      merged.push(line);
+    }
+  });
+  editTextarea.value = merged.join('\n');
+  showToast('✅ 已合併短行');
+});
+
+/* ══ Edit Panel — Search / Replace ═════════════════════════ */
+document.getElementById('fmt-search-toggle').addEventListener('click', function () {
+  var bar = document.getElementById('edit-search-bar');
+  var isShow = bar.classList.toggle('show');
+  document.getElementById('fmt-search-toggle').classList.toggle('active', isShow);
+  if (isShow) document.getElementById('search-input').focus();
+});
+document.getElementById('btn-replace').addEventListener('click', function () {
+  var needle  = document.getElementById('search-input').value;
+  var replace = document.getElementById('replace-input').value;
+  if (!needle) return;
+  var idx = editTextarea.value.indexOf(needle);
+  if (idx === -1) { showToast('⚠️ 找不到「' + needle + '」'); return; }
+  editTextarea.value =
+    editTextarea.value.slice(0, idx) + replace + editTextarea.value.slice(idx + needle.length);
+  var pos = idx + replace.length;
+  editTextarea.setSelectionRange(pos, pos);
+  editTextarea.focus();
+});
+document.getElementById('btn-replace-all').addEventListener('click', function () {
+  var needle  = document.getElementById('search-input').value;
+  var replace = document.getElementById('replace-input').value;
+  if (!needle) return;
+  var count = editTextarea.value.split(needle).length - 1;
+  if (count === 0) { showToast('⚠️ 找不到「' + needle + '」'); return; }
+  editTextarea.value = editTextarea.value.split(needle).join(replace);
+  showToast('✅ 已取代 ' + count + ' 處');
+  editTextarea.focus();
+});
 
 /* ══ IndexedDB — library store ══════════════════════════════ */
 var _idb = null;
