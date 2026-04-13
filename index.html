@@ -308,6 +308,21 @@ body {
 }
 body.dark .btn-sync { background: #132d1e; }
 .btn-sync:hover { background: var(--green); border-color: transparent; color: #fff; }
+.btn-gh-settings {
+  width: 44px; height: 44px; flex-shrink: 0;
+  border: 2px solid var(--border); border-radius: 14px;
+  background: var(--white); color: var(--muted);
+  font-size: 1rem; cursor: pointer; transition: all .15s;
+}
+.btn-gh-settings:hover { border-color: var(--blue); color: var(--blue-dk); background: var(--blue-lt); }
+.btn-modal-upload {
+  display: block; width: 100%; height: 44px;
+  margin-top: 8px; border: 2px dashed var(--green-dk); border-radius: 13px;
+  background: #edfaf3; color: var(--green-dk);
+  font-size: .9rem; font-weight: 800; cursor: pointer; transition: all .15s;
+}
+body.dark .btn-modal-upload { background: #132d1e; }
+.btn-modal-upload:hover { background: var(--green); border-style: solid; border-color: transparent; color: #fff; }
 
 .group-section { margin-bottom: 32px; }
 .group-label {
@@ -459,8 +474,8 @@ body.dark .btn-sync { background: #132d1e; }
 <div id="topbar">
   <button id="topbar-back">← 返回</button>
   <div id="topbar-title">🎧 有聲教材</div>
-  <button class="topbar-tab active" id="tab-convert" onclick="switchTab('convert')">📂 轉換</button>
-  <button class="topbar-tab"        id="tab-library" onclick="switchTab('library')">📚 報讀庫</button>
+  <button class="topbar-tab active" id="tab-convert">📂 轉換</button>
+  <button class="topbar-tab"        id="tab-library">📚 報讀庫</button>
   <button id="topbar-theme">🌙</button>
 </div>
 
@@ -532,6 +547,7 @@ body.dark .btn-sync { background: #132d1e; }
       <div class="library-heading">📚 報讀庫</div>
       <button class="btn-pick btn-sync" id="btn-sync-github">☁️ 從 GitHub 同步</button>
       <label class="btn-pick" for="import-files-input">📥 匯入 .html 檔</label>
+      <button class="btn-gh-settings" id="btn-gh-settings" title="GitHub Token 設定">⚙️</button>
       <input type="file" id="import-files-input" accept=".html,.htm" multiple style="display:none"/>
     </div>
     <div id="library-content">
@@ -581,6 +597,25 @@ body.dark .btn-sync { background: #132d1e; }
     <div class="modal-actions">
       <button class="btn-modal-cancel" id="btn-cancel-edit-item">取消</button>
       <button class="btn-modal-ok"     id="btn-confirm-edit-item">✅ 儲存</button>
+    </div>
+    <button class="btn-modal-upload" id="btn-upload-edit-item">⬆️ 儲存並上傳到 GitHub</button>
+  </div>
+</div>
+
+<!-- ── GitHub Token Modal ───────────────────────────────────── -->
+<div class="modal-overlay" id="modal-gh-token">
+  <div class="modal-card">
+    <h3>⚙️ GitHub 設定</h3>
+    <div class="form-group">
+      <label class="form-label" for="gh-token-input">Personal Access Token（PAT）</label>
+      <input class="form-input" id="gh-token-input" type="password" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off"/>
+    </div>
+    <p style="font-size:.75rem;color:var(--muted);line-height:1.6;margin-bottom:4px">
+      需要 <code style="background:var(--blue-lt);padding:1px 5px;border-radius:5px">contents:write</code> 權限。Token 只儲存在本機瀏覽器。
+    </p>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" id="btn-cancel-gh-token">取消</button>
+      <button class="btn-modal-ok"     id="btn-save-gh-token">✅ 儲存 Token</button>
     </div>
   </div>
 </div>
@@ -636,6 +671,12 @@ var editItemGroup   = document.getElementById('edit-item-group');
 var editItemGroups  = document.getElementById('edit-item-groups');
 var btnCancelEditItem  = document.getElementById('btn-cancel-edit-item');
 var btnConfirmEditItem = document.getElementById('btn-confirm-edit-item');
+var btnUploadEditItem  = document.getElementById('btn-upload-edit-item');
+var btnGhSettings      = document.getElementById('btn-gh-settings');
+var modalGhToken       = document.getElementById('modal-gh-token');
+var ghTokenInput       = document.getElementById('gh-token-input');
+var btnCancelGhToken   = document.getElementById('btn-cancel-gh-token');
+var btnSaveGhToken     = document.getElementById('btn-save-gh-token');
 var topbarBack      = document.getElementById('topbar-back');
 var themeBtn        = document.getElementById('topbar-theme');
 var toast           = document.getElementById('toast');
@@ -668,6 +709,8 @@ function switchTab(tab) {
     showPage(readerContent.children.length > 0 ? 'reader' : 'upload');
   }
 }
+document.getElementById('tab-convert').addEventListener('click', function () { switchTab('convert'); });
+document.getElementById('tab-library').addEventListener('click', function () { switchTab('library'); });
 
 topbarBack.addEventListener('click', function () {
   if (currentPage === 'reader')  { stopSpeak(); showPage('upload'); }
@@ -1107,6 +1150,62 @@ btnImportFiles.addEventListener('change', async function () {
   loadLibrary();
 });
 
+/* ══ GitHub Token 設定 ══════════════════════════════════════ */
+btnGhSettings.addEventListener('click', function () {
+  ghTokenInput.value = localStorage.getItem('gh-pat') || '';
+  modalGhToken.classList.add('show');
+  setTimeout(function () { ghTokenInput.focus(); }, 50);
+});
+btnCancelGhToken.addEventListener('click', function () { modalGhToken.classList.remove('show'); });
+modalGhToken.addEventListener('click', function (e) {
+  if (e.target === modalGhToken) modalGhToken.classList.remove('show');
+});
+btnSaveGhToken.addEventListener('click', function () {
+  var tok = ghTokenInput.value.trim();
+  if (tok) localStorage.setItem('gh-pat', tok);
+  else localStorage.removeItem('gh-pat');
+  modalGhToken.classList.remove('show');
+  showToast(tok ? '✅ Token 已儲存' : '🗑 Token 已清除');
+});
+
+/* ══ GitHub 上傳 ═════════════════════════════════════════════ */
+var GITHUB_CONTENTS = 'https://api.github.com/repos/vaguemoon/word-to-reader/contents/';
+
+async function uploadToGitHub(name, html) {
+  var token = localStorage.getItem('gh-pat');
+  if (!token) {
+    ghTokenInput.value = '';
+    modalGhToken.classList.add('show');
+    showToast('⚠️ 請先設定 GitHub Token');
+    return false;
+  }
+  var url = GITHUB_CONTENTS + encodeURIComponent('報讀') + '/' + encodeURIComponent(name);
+
+  /* 查是否已存在（取得 sha）*/
+  var sha = null;
+  try {
+    var chk = await fetch(url, { headers: { 'Authorization': 'token ' + token } });
+    if (chk.ok) { var info = await chk.json(); sha = info.sha; }
+  } catch (e) { /* 新檔案，不需要 sha */ }
+
+  /* base64 編碼（支援中文） */
+  var b64 = btoa(unescape(encodeURIComponent(html)));
+
+  var body = { message: (sha ? '更新 ' : '新增 ') + name, content: b64 };
+  if (sha) body.sha = sha;
+
+  var res = await fetch(url, {
+    method:  'PUT',
+    headers: { 'Authorization': 'token ' + token, 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body)
+  });
+  if (!res.ok) {
+    var err = await res.json().catch(function () { return {}; });
+    throw new Error(err.message || 'HTTP ' + res.status);
+  }
+  return true;
+}
+
 /* ══ GitHub 同步 ═════════════════════════════════════════════ */
 var GITHUB_API = 'https://api.github.com/repos/vaguemoon/word-to-reader/contents/%E5%A0%B1%E8%AE%80';
 
@@ -1209,6 +1308,32 @@ btnConfirmEditItem.addEventListener('click', async function () {
   _editingFile = null;
   showToast('✅ 已更新項目');
   loadLibrary();
+});
+
+btnUploadEditItem.addEventListener('click', async function () {
+  if (!_editingFile) return;
+  var newTitle = editItemTitle.value.trim();
+  var newGroup = editItemGroup.value.trim() || '未分類';
+  if (!newTitle) { editItemTitle.focus(); return; }
+  try {
+    var entry = await idbGet(_editingFile.name);
+    if (!entry) { showToast('⚠️ 找不到此項目'); return; }
+    entry.title = newTitle;
+    entry.group = newGroup;
+    await idbPut(entry);
+    modalEditItem.classList.remove('show');
+    var name = _editingFile.name;
+    _editingFile = null;
+    procMsg.textContent = '正在上傳到 GitHub…';
+    procOverlay.classList.add('show');
+    var ok = await uploadToGitHub(entry.name, entry.html);
+    procOverlay.classList.remove('show');
+    if (ok) showToast('✅ 已上傳「' + entry.title + '」到 GitHub');
+    loadLibrary();
+  } catch (e) {
+    procOverlay.classList.remove('show');
+    showToast('⚠️ 上傳失敗：' + e.message);
+  }
 });
 
 async function loadLibrary() {
