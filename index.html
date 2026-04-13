@@ -319,7 +319,7 @@ body {
 .lib-card {
   background: linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.01));
   border: 1px solid var(--border); border-radius: 16px;
-  padding: 16px 44px 16px 18px;
+  padding: 16px 120px 16px 18px;
   cursor: pointer; text-decoration: none; color: var(--text);
   display: block; position: relative;
   transition: all .15s;
@@ -331,8 +331,10 @@ body {
 }
 .lib-card-title { font-weight: 900; font-size: .98rem; margin-bottom: 4px; }
 .lib-card-meta  { font-size: .76rem; color: var(--muted); }
-.lib-card-del {
-  position: absolute; top: 50%; right: 12px;
+.lib-card-del,
+.lib-card-edit,
+.lib-card-dl {
+  position: absolute; top: 50%;
   transform: translateY(-50%);
   width: 30px; height: 30px;
   background: none; border: none; border-radius: 8px;
@@ -340,8 +342,15 @@ body {
   cursor: pointer; display: flex; align-items: center; justify-content: center;
   opacity: 0; transition: all .15s;
 }
-.lib-card:hover .lib-card-del { opacity: 1; }
-.lib-card-del:hover { background: var(--red); color: #fff; }
+.lib-card-del  { right: 12px; }
+.lib-card-edit { right: 48px; }
+.lib-card-dl   { right: 84px; }
+.lib-card:hover .lib-card-del,
+.lib-card:hover .lib-card-edit,
+.lib-card:hover .lib-card-dl   { opacity: 1; }
+.lib-card-del:hover  { background: var(--red);     color: #fff; }
+.lib-card-edit:hover { background: var(--blue-lt); color: var(--blue-dk); }
+.lib-card-dl:hover   { background: #e6f9ee;        color: #389959; }
 
 .library-empty {
   text-align: center; padding: 56px 24px; color: var(--muted);
@@ -515,12 +524,13 @@ body {
   <div class="library-wrap">
     <div class="library-toprow">
       <div class="library-heading">📚 報讀庫</div>
-      <button class="btn-pick" id="btn-pick-folder">📁 選擇報讀資料夾</button>
+      <label class="btn-pick" for="import-files-input">📥 匯入 .html 檔</label>
+      <input type="file" id="import-files-input" accept=".html,.htm" multiple style="display:none"/>
     </div>
     <div id="library-content">
       <div class="library-empty">
-        <p>尚未選擇資料夾</p>
-        <small>點擊「選擇報讀資料夾」，選取 <code>報讀/</code> 資料夾即可自動讀取內容</small>
+        <p>報讀庫還沒有內容</p>
+        <small>使用「轉換」功能後按「存到報讀庫」，或點「匯入 .html 檔」加入已有檔案</small>
       </div>
     </div>
   </div>
@@ -543,6 +553,27 @@ body {
     <div class="modal-actions">
       <button class="btn-modal-cancel" id="btn-cancel-save">取消</button>
       <button class="btn-modal-ok"     id="btn-confirm-save">💾 確認儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Edit Item Modal ──────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-edit-item">
+  <div class="modal-card">
+    <h3>✏️ 編輯項目</h3>
+    <div class="form-group">
+      <label class="form-label" for="edit-item-title">標題</label>
+      <input class="form-input" id="edit-item-title" type="text" placeholder="檔案標題"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="edit-item-group">群組</label>
+      <input class="form-input" id="edit-item-group" type="text"
+             placeholder="未分類" list="edit-item-groups" autocomplete="off"/>
+      <datalist id="edit-item-groups"></datalist>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" id="btn-cancel-edit-item">取消</button>
+      <button class="btn-modal-ok"     id="btn-confirm-edit-item">✅ 儲存</button>
     </div>
   </div>
 </div>
@@ -584,13 +615,19 @@ var applyEditBtn    = document.getElementById('apply-edit-btn');
 var cancelEditBtn   = document.getElementById('cancel-edit-btn');
 var saveLibBtn      = document.getElementById('save-lib-btn');
 var libraryContent  = document.getElementById('library-content');
-var btnPickFolder   = document.getElementById('btn-pick-folder');
+var btnImportFiles  = document.getElementById('import-files-input');
 var modalSave       = document.getElementById('modal-save');
 var saveFilename    = document.getElementById('save-filename');
 var saveGroup       = document.getElementById('save-group');
 var groupDatalist   = document.getElementById('group-datalist');
 var btnCancelSave   = document.getElementById('btn-cancel-save');
 var btnConfirmSave  = document.getElementById('btn-confirm-save');
+var modalEditItem   = document.getElementById('modal-edit-item');
+var editItemTitle   = document.getElementById('edit-item-title');
+var editItemGroup   = document.getElementById('edit-item-group');
+var editItemGroups  = document.getElementById('edit-item-groups');
+var btnCancelEditItem  = document.getElementById('btn-cancel-edit-item');
+var btnConfirmEditItem = document.getElementById('btn-confirm-edit-item');
 var topbarBack      = document.getElementById('topbar-back');
 var themeBtn        = document.getElementById('topbar-theme');
 var toast           = document.getElementById('toast');
@@ -601,9 +638,9 @@ var voices          = [];
 var isPlayingAll    = false;
 var playAllIndex    = 0;
 var currentDocName  = '有聲教材';
-var reportDirHandle = null;
 var currentPage     = 'upload';
 var synth           = window.speechSynthesis;
+var _editingFile    = null;  /* { name, title, group } */
 
 /* ══ Navigation ═════════════════════════════════════════════ */
 function showPage(name) {
@@ -842,99 +879,56 @@ applyEditBtn.addEventListener('click', function () {
 });
 cancelEditBtn.addEventListener('click', closeEdit);
 
-/* ══ IndexedDB — persist directory handle ═══════════════════ */
+/* ══ IndexedDB — library store ══════════════════════════════ */
 var _idb = null;
 function openIDB() {
   return new Promise(function (resolve, reject) {
     if (_idb) { resolve(_idb); return; }
-    var req = indexedDB.open('reader-tool-v1', 1);
-    req.onupgradeneeded = function (e) { e.target.result.createObjectStore('handles'); };
+    var req = indexedDB.open('reader-tool-v2', 1);
+    req.onupgradeneeded = function (e) {
+      e.target.result.createObjectStore('library', { keyPath: 'name' });
+    };
     req.onsuccess = function (e) { _idb = e.target.result; resolve(_idb); };
     req.onerror   = reject;
   });
 }
-function saveHandleIDB(handle) {
+function idbPut(entry) {
   return openIDB().then(function (db) {
     return new Promise(function (resolve, reject) {
-      var tx = db.transaction('handles', 'readwrite');
-      tx.objectStore('handles').put(handle, 'reportDir');
+      var tx = db.transaction('library', 'readwrite');
+      tx.objectStore('library').put(entry);
       tx.oncomplete = resolve; tx.onerror = reject;
     });
   });
 }
-function loadHandleIDB() {
+function idbGetAll() {
   return openIDB().then(function (db) {
     return new Promise(function (resolve, reject) {
-      var tx  = db.transaction('handles', 'readonly');
-      var req = tx.objectStore('handles').get('reportDir');
+      var tx  = db.transaction('library', 'readonly');
+      var req = tx.objectStore('library').getAll();
+      req.onsuccess = function () { resolve(req.result || []); };
+      req.onerror   = reject;
+    });
+  });
+}
+function idbGet(name) {
+  return openIDB().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var tx  = db.transaction('library', 'readonly');
+      var req = tx.objectStore('library').get(name);
       req.onsuccess = function () { resolve(req.result || null); };
       req.onerror   = reject;
     });
   });
 }
-
-/* ══ File System Access API ═════════════════════════════════ */
-async function verifyPermission(handle) {
-  var opts = { mode: 'readwrite' };
-  if ((await handle.queryPermission(opts)) === 'granted') return true;
-  if ((await handle.requestPermission(opts)) === 'granted') return true;
-  return false;
-}
-
-async function ensureReportDir() {
-  if (reportDirHandle && await verifyPermission(reportDirHandle)) return true;
-  try {
-    var saved = await loadHandleIDB();
-    if (saved && await verifyPermission(saved)) {
-      reportDirHandle = saved; return true;
-    }
-  } catch (e) { /* ignore */ }
-  try {
-    reportDirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-    await saveHandleIDB(reportDirHandle);
-    return true;
-  } catch (e) {
-    if (e.name !== 'AbortError') showToast('⚠️ 無法存取資料夾');
-    return false;
-  }
-}
-
-async function writeFile(filename, text) {
-  if (!await ensureReportDir()) return false;
-  try {
-    var fh  = await reportDirHandle.getFileHandle(filename, { create: true });
-    var writable = await fh.createWritable();
-    await writable.write(text);
-    await writable.close();
-    return true;
-  } catch (e) {
-    showToast('⚠️ 儲存失敗：' + e.message); return false;
-  }
-}
-
-/* ══ Metadata (localStorage) ════════════════════════════════ */
-function saveMeta(filename, group) {
-  localStorage.setItem('rmeta-' + filename, JSON.stringify({
-    group: group,
-    title: filename.replace(/\.html$/i, ''),
-    date:  new Date().toISOString().slice(0, 10)
-  }));
-}
-function getMeta(filename) {
-  try { return JSON.parse(localStorage.getItem('rmeta-' + filename)) || null; }
-  catch (e) { return null; }
-}
-function getKnownGroups() {
-  var groups = new Set();
-  for (var i = 0; i < localStorage.length; i++) {
-    var k = localStorage.key(i);
-    if (!k || !k.startsWith('rmeta-')) continue;
-    try {
-      var m = JSON.parse(localStorage.getItem(k));
-      if (m && m.group) groups.add(m.group);
-    } catch (e) { /* ignore */ }
-  }
-  return Array.from(groups).sort(function (a, b) { return a.localeCompare(b, 'zh'); });
+function idbDelete(name) {
+  return openIDB().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var tx = db.transaction('library', 'readwrite');
+      tx.objectStore('library').delete(name);
+      tx.oncomplete = resolve; tx.onerror = reject;
+    });
+  });
 }
 
 /* ══ Generate Output HTML ═══════════════════════════════════ */
@@ -1026,15 +1020,19 @@ function buildOutputHtml(docName, group) {
 }
 
 /* ══ Save to Library ════════════════════════════════════════ */
-saveLibBtn.addEventListener('click', function () {
+saveLibBtn.addEventListener('click', async function () {
   saveFilename.value = currentDocName;
   saveGroup.value    = '';
   groupDatalist.innerHTML = '';
-  getKnownGroups().forEach(function (g) {
-    var opt = document.createElement('option');
-    opt.value = g;
-    groupDatalist.appendChild(opt);
-  });
+  try {
+    var entries = await idbGetAll();
+    var gs = new Set(entries.map(function (e) { return e.group; }).filter(Boolean));
+    gs.forEach(function (g) {
+      var opt = document.createElement('option');
+      opt.value = g;
+      groupDatalist.appendChild(opt);
+    });
+  } catch (e) { /* ignore */ }
   modalSave.classList.add('show');
   setTimeout(function () { saveFilename.select(); }, 50);
 });
@@ -1056,67 +1054,121 @@ btnConfirmSave.addEventListener('click', async function () {
   procMsg.textContent = '正在儲存到報讀庫…';
   procOverlay.classList.add('show');
 
-  var ok = await writeFile(filename, htmlContent);
-  procOverlay.classList.remove('show');
-
-  if (ok) {
-    saveMeta(filename, group);
+  try {
+    await idbPut({
+      name:  filename,
+      title: fname,
+      group: group,
+      date:  new Date().toISOString().slice(0, 10),
+      html:  htmlContent
+    });
+    procOverlay.classList.remove('show');
     showToast('✅ 已儲存「' + fname + '」');
     setTimeout(function () { showPage('library'); loadLibrary(); }, 1000);
+  } catch (e) {
+    procOverlay.classList.remove('show');
+    showToast('⚠️ 儲存失敗：' + e.message);
   }
 });
 
-/* ══ Library ════════════════════════════════════════════════ */
-btnPickFolder.addEventListener('click', async function () {
-  var ok = await ensureReportDir();
-  if (ok) loadLibrary();
+/* ══ Library — import ═══════════════════════════════════════ */
+btnImportFiles.addEventListener('change', async function () {
+  var files = Array.from(btnImportFiles.files);
+  if (!files.length) return;
+  procMsg.textContent = '正在匯入 ' + files.length + ' 個檔案…';
+  procOverlay.classList.add('show');
+  var ok = 0, fail = 0;
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    try {
+      var html  = await f.text();
+      var title = f.name.replace(/\.html?$/i, '');
+      await idbPut({
+        name:  f.name,
+        title: title,
+        group: '未分類',
+        date:  new Date().toISOString().slice(0, 10),
+        html:  html
+      });
+      ok++;
+    } catch (e) { fail++; }
+  }
+  btnImportFiles.value = '';
+  procOverlay.classList.remove('show');
+  showToast('✅ 已匯入 ' + ok + ' 個' + (fail ? '，' + fail + ' 個失敗' : ''));
+  loadLibrary();
+});
+
+/* ══ Edit Item Modal ════════════════════════════════════════ */
+async function openEditItemModal(filename, title, group) {
+  _editingFile = { name: filename, title: title, group: group };
+  editItemTitle.value = title;
+  editItemGroup.value = group === '未分類' ? '' : group;
+  editItemGroups.innerHTML = '';
+  try {
+    var entries = await idbGetAll();
+    var gs = new Set(entries.map(function (e) { return e.group; }).filter(Boolean));
+    gs.forEach(function (g) {
+      var opt = document.createElement('option');
+      opt.value = g;
+      editItemGroups.appendChild(opt);
+    });
+  } catch (e) { /* ignore */ }
+  modalEditItem.classList.add('show');
+  setTimeout(function () { editItemTitle.select(); }, 50);
+}
+
+btnCancelEditItem.addEventListener('click', function () {
+  modalEditItem.classList.remove('show');
+});
+modalEditItem.addEventListener('click', function (e) {
+  if (e.target === modalEditItem) modalEditItem.classList.remove('show');
+});
+btnConfirmEditItem.addEventListener('click', async function () {
+  if (!_editingFile) return;
+  var newTitle = editItemTitle.value.trim();
+  var newGroup = editItemGroup.value.trim() || '未分類';
+  if (!newTitle) { editItemTitle.focus(); return; }
+  try {
+    var entry = await idbGet(_editingFile.name);
+    if (entry) {
+      entry.title = newTitle;
+      entry.group = newGroup;
+      await idbPut(entry);
+    }
+  } catch (e) {
+    showToast('⚠️ 更新失敗：' + e.message);
+    return;
+  }
+  modalEditItem.classList.remove('show');
+  _editingFile = null;
+  showToast('✅ 已更新項目');
+  loadLibrary();
 });
 
 async function loadLibrary() {
-  /* 嘗試靜默恢復 handle */
-  if (!reportDirHandle) {
-    try {
-      var saved = await loadHandleIDB();
-      if (saved && await verifyPermission(saved)) reportDirHandle = saved;
-    } catch (e) { /* ignore */ }
-  }
-
-  if (!reportDirHandle) {
-    libraryContent.innerHTML =
-      '<div class="library-empty"><p>尚未選擇資料夾</p>' +
-      '<small>點擊「選擇報讀資料夾」，選取 <code>報讀/</code> 資料夾即可自動讀取內容</small></div>';
-    return;
-  }
-
-  var files = [];
+  var entries;
   try {
-    for await (var [name, handle] of reportDirHandle.entries()) {
-      if (/\.html$/i.test(name) && name !== 'index.html') {
-        files.push({ name: name, handle: handle });
-      }
-    }
+    entries = await idbGetAll();
   } catch (e) {
     libraryContent.innerHTML =
-      '<div class="library-empty"><p>⚠️ 無法讀取資料夾</p><small>' + e.message + '</small></div>';
+      '<div class="library-empty"><p>⚠️ 無法讀取報讀庫</p><small>' + e.message + '</small></div>';
     return;
   }
 
-  if (files.length === 0) {
+  if (entries.length === 0) {
     libraryContent.innerHTML =
-      '<div class="library-empty"><p>資料夾中還沒有檔案</p>' +
-      '<small>使用「轉換」功能並儲存到此資料夾，檔案就會出現在這裡</small></div>';
+      '<div class="library-empty"><p>報讀庫還沒有內容</p>' +
+      '<small>使用「轉換」功能後按「存到報讀庫」，或點「匯入 .html 檔」加入已有檔案</small></div>';
     return;
   }
 
   /* 分組 */
   var groups = {};
-  files.forEach(function (f) {
-    var meta  = getMeta(f.name);
-    var group = (meta && meta.group) ? meta.group : '未分類';
-    var title = (meta && meta.title) ? meta.title : f.name.replace(/\.html$/i, '');
-    var date  = (meta && meta.date)  ? meta.date  : '';
-    if (!groups[group]) groups[group] = [];
-    groups[group].push({ name: f.name, handle: f.handle, title: title, date: date });
+  entries.forEach(function (entry) {
+    var g = entry.group || '未分類';
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(entry);
   });
 
   var groupNames = Object.keys(groups).sort(function (a, b) {
@@ -1139,39 +1191,58 @@ async function loadLibrary() {
     grid.className = 'card-grid';
     section.appendChild(grid);
 
-    groups[gname].forEach(function (file) {
+    groups[gname].forEach(function (entry) {
       var card = document.createElement('div');
       card.className = 'lib-card';
 
       var titleEl = document.createElement('div');
       titleEl.className   = 'lib-card-title';
-      titleEl.textContent = file.title;
+      titleEl.textContent = entry.title;
       card.appendChild(titleEl);
 
-      if (file.date) {
-        var meta = document.createElement('div');
-        meta.className   = 'lib-card-meta';
-        meta.textContent = file.date;
-        card.appendChild(meta);
+      if (entry.date) {
+        var dateMeta = document.createElement('div');
+        dateMeta.className   = 'lib-card-meta';
+        dateMeta.textContent = entry.date;
+        card.appendChild(dateMeta);
       }
+
+      var dlBtn = document.createElement('button');
+      dlBtn.className   = 'lib-card-dl';
+      dlBtn.title       = '下載 .html 檔案';
+      dlBtn.textContent = '⬇️';
+      card.appendChild(dlBtn);
+
+      var editBtn = document.createElement('button');
+      editBtn.className   = 'lib-card-edit';
+      editBtn.title       = '重新命名 / 更改群組';
+      editBtn.textContent = '✏️';
+      card.appendChild(editBtn);
 
       var delBtn = document.createElement('button');
       delBtn.className   = 'lib-card-del';
-      delBtn.title       = '從報讀庫刪除此檔案';
+      delBtn.title       = '從報讀庫刪除';
       delBtn.textContent = '🗑';
       card.appendChild(delBtn);
 
       card.addEventListener('click', function (e) {
-        if (e.target === delBtn) return;
-        openLibraryFile(file.handle, file.name);
+        if (e.target === delBtn || e.target === editBtn || e.target === dlBtn) return;
+        openLibraryItem(entry.html, entry.title);
+      });
+      dlBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        downloadLibraryItem(entry.name, entry.html);
+      });
+      editBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openEditItemModal(entry.name, entry.title, entry.group || '未分類');
       });
       delBtn.addEventListener('click', async function (e) {
         e.stopPropagation();
-        if (!confirm('確定要刪除「' + file.title + '」？\n（此操作會刪除資料夾內的實際檔案）')) return;
+        if (!confirm('確定要刪除「' + entry.title + '」？')) return;
         try {
-          await reportDirHandle.removeEntry(file.name);
-          localStorage.removeItem('rmeta-' + file.name);
-          showToast('🗑 已刪除「' + file.title + '」');
+          await idbDelete(entry.name);
+          showToast('🗑 已刪除「' + entry.title + '」');
           loadLibrary();
         } catch (err) {
           showToast('⚠️ 刪除失敗：' + err.message);
@@ -1185,23 +1256,34 @@ async function loadLibrary() {
   });
 }
 
-async function openLibraryFile(handle, name) {
+function openLibraryItem(html, title) {
   try {
-    var file = await handle.getFile();
-    var url  = URL.createObjectURL(file);
+    var blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+    var url  = URL.createObjectURL(blob);
     var win  = window.open(url, '_blank');
-    /* 等新視窗載入後撤銷 URL，避免記憶體洩漏 */
     setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
-    if (!win) showToast('⚠️ 請允許彈出視窗以開啟檔案');
+    if (!win) showToast('⚠️ 請允許彈出視窗以開啟「' + title + '」');
   } catch (e) {
     showToast('⚠️ 無法開啟：' + e.message);
   }
 }
 
+function downloadLibraryItem(name, html) {
+  var blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+}
+
 /* ══ Init ═══════════════════════════════════════════════════ */
-loadHandleIDB()
-  .then(function (saved) { if (saved) reportDirHandle = saved; })
-  .catch(function () { /* ignore */ });
+if (window.location.hash === '#library') {
+  showPage('library');
+  loadLibrary();
+}
 
 })();
 </script>
